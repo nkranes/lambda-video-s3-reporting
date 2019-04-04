@@ -1,0 +1,16 @@
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.zip
+*.test
+*.out
+
+.idea/
+.vscode/
+
+out/
+
+/frankly-lambda-video-s3-reporting
+/main

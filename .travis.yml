@@ -1,0 +1,31 @@
+language: go
+go: 1.11
+
+env:
+  global:
+  - REPO=frankly-lambda-video-s3-reporting
+  - AWS_REGION=us-east-1
+  - COMMIT=${TRAVIS_COMMIT::7}
+
+notifications:
+  slack: franklychat:i44qYAegHNkr68ncBiML6fXl
+
+before_install:
+  - cp .netrc ~
+
+script:
+  - go test ./...
+  - go build
+  - cp frankly-lambda-video-s3-reporting debian/usr/local/bin/frankly-lambda-video-s3-reporting
+  - tar -cvzf $REPO-travis-$TRAVIS_BUILD_NUMBER.tar.gz -C debian .
+
+addons:
+  artifacts:
+    bucket: frankly-travis-ci
+    paths:
+    - "$REPO-travis-$TRAVIS_BUILD_NUMBER.tar.gz"
+    target_paths:
+    - "$REPO/$TRAVIS_BUILD_NUMBER"
+    debug: true
+  s3_region: "$AWS_REGION"
+
