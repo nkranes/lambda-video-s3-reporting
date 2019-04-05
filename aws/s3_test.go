@@ -3,23 +3,10 @@ package aws
 import (
 	"fmt"
 	"testing"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 )
-
-
-func TestGetBucketObjectsInvalid(t *testing.T) {
-	sess, err := MakeSession()
-	if err != nil {
-		fmt.Errorf("makeSession error. " + err.Error())
-		t.Fail()
-	}
-
-	_, err = GetBucketObjects(sess, "frankly-video-content-prodXXX", "")
-	if err != nil {
-		fmt.Println("Success")
-	} else {
-		t.Fail()
-	}
-}
 
 func TestGetBucketTopLevelFoldersOnly(t *testing.T) {
 	sess, err := MakeSession()
@@ -40,23 +27,37 @@ func TestGetBucketTopLevelFoldersOnly(t *testing.T) {
 
 }
 
-func TestGetBucketObjects(t *testing.T) {
+func TestGetFolderSize(t *testing.T) {
 	sess, err := MakeSession()
 	if err != nil {
 		fmt.Errorf("makeSession error. " + err.Error())
 		t.Fail()
 	}
 
-	objects, err := GetBucketObjects(sess, "frankly-video-content-prod", "ap/")
+	folderSize, err := GetFolderSize(sess, "frankly-video-content-prod", "kfol/")
 	if err != nil {
-		fmt.Errorf("GetBucketObjects error. " + err.Error())
+		fmt.Errorf("GetFolderSize error. " + err.Error())
 		t.Fail()
 	}
 
-	fmt.Println(objects.Contents)
-
-	for _, key := range objects.Contents {
-		fmt.Println(*key.Size)
+	if folderSize < 0 {
+		t.Fail()
 	}
 }
 
+func TestObjectSize(t *testing.T) {
+	sess, err := MakeSession()
+	if err != nil {
+		fmt.Errorf("makeSession error. " + err.Error())
+		t.Fail()
+	}
+
+	svc := s3.New(sess)
+	query := &s3.GetObjectInput{
+		Bucket: aws.String("frankly-video-content-prod"),
+		Key:    aws.String("ap/"),
+	}
+	resp, err := svc.GetObject(query)
+
+	fmt.Println(resp.ContentLength)
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -38,36 +39,52 @@ func MainHandler(ctx context.Context) error {
 
 	folders := StructifyFolder(topLevelFolders)
 
+	resc, errc := make(chan string), make(chan error)
+
 	for i := 0; i < len(folders); i += 1 {
-		folders[i].SizeInBytes, err = aws.GetFolderSize(sess, config.S3BucketName, folders[i].Name)
-		if err != nil {
-			return errors.New("ERROR: GetFolderSize: " + err.Error())
-		}
+		folder := folders[i]
+		go func() {
+			folder.SizeInBytes, err = aws.GetFolderSize(sess, config.S3BucketName, folder.Name)
+
+			if err != nil {
+				errc <- errors.New(" ERROR: GetFolderSize: " + err.Error())
+			} else {
+				err = WriteValuesToSql(config.SqlServerConnString, folder)
+				if err != nil {
+					errc <- errors.New(" ERROR: WriteValuesToSql: " + err.Error())
+				}
+
+				resc <- " SUCCESS: Successfully Processed " + folder.Name
+			}
+		}()
 	}
 
-	err = WriteValuesToSql(config.SqlServerConnString, folders)
-	if err != nil {
-		return errors.New("ERROR: WriteValuesToSql: " + err.Error())
+	for i := 0; i < len(folders); i++ {
+		select {
+		case res := <-resc:
+			log.Println(time.Now().Format("2006-01-02 15:04:05") + res)
+		case err := <-errc:
+			log.Println(time.Now().Format("2006-01-02 15:04:05") + err.Error())
+			return err
+		}
 	}
 
 	return nil
 }
 
-func StructifyFolder(objectList *s3.ListObjectsV2Output) ([]model.Folder){
+func StructifyFolder(objectList *s3.ListObjectsV2Output) []model.Folder {
 	var folders []model.Folder
 	for _, key := range objectList.CommonPrefixes {
-		folder := model.Folder{Name: *key.Prefix }
+		folder := model.Folder{Name: *key.Prefix}
 		folders = append(folders, folder)
 	}
 	return folders
 }
 
-func WriteValuesToSql(sqlServerConnString string, folders []model.Folder) (err error) {
-	for _, folder := range folders {
-		err = services.UpdateTableWithFolderData(sqlServerConnString, folder)
-		if err != nil {
-			return err
-		}
+func WriteValuesToSql(sqlServerConnString string, folder model.Folder) (err error) {
+	err = services.UpdateTableWithFolderData(sqlServerConnString, folder)
+	if err != nil {
+		return err
 	}
 
 	return nil
